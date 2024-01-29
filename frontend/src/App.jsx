@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FaClipboard } from 'react-icons/fa'
 import { useForm } from './useForm'
 import { getRandomChar, getSpecialChar } from './utils'
 import toast from 'react-hot-toast'
+import SavedPasswords from './SavedPasswords'
 
 function App() {
     const [values, setValues] = useForm({
@@ -14,6 +15,7 @@ function App() {
     })
 
     const [result, setResult] = useState("")
+    const [savedPasswords, setSavedPasswords] = useState([]);
 
     const fieldsArray = [
         {
@@ -33,6 +35,24 @@ function App() {
             getChar: () => getSpecialChar()
         }
     ]
+
+    useEffect(() => {
+        const fetchSavedPasswords = async () => {
+        try {
+            const response = await fetch('http://localhost:3001/api/passwords');
+            if (response.ok) {
+            const data = await response.json();
+            setSavedPasswords(data);
+            } else {
+            console.error('Failed to fetch saved passwords');
+            }
+        } catch (error) {
+            console.error('Error fetching saved passwords:', error);
+        }
+        };
+
+        fetchSavedPasswords();
+    }, []);
 
     const handleOnSubmit = (e) => {
         e.preventDefault();
@@ -71,10 +91,45 @@ function App() {
             toast.error("No password to copy")
         }
     }
+
+    const handleSave = async () => {
+        if (result) {
+            try {
+                const existingPasswords = savedPasswords.map(password => password.value);
+                if (existingPasswords.includes(result)) {
+                    toast.error('Password is already saved');
+                } else {
+                    const response = await fetch('http://localhost:3001/api/passwords', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ value: result }),
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        toast.success('Password stored successfully');
+                        // Update the saved passwords state
+                        setSavedPasswords((prevPasswords) => [...prevPasswords, { _id: data._id, value: result }]);
+                    } else {
+                        toast.error('Failed to store password');
+                    }
+                }
+            } catch (error) {
+                toast.error('Failed to store password');
+            }
+        } else {
+            toast.error('No password to save');
+        }
+    };
+
+
+   
   return (
     <section>
         <div className='container'>
-            <form id='pg-form' onSubmit={handleOnSubmit}>
+        <h2>Password Generator</h2>
+            <form id='pg-form' onSubmit={handleOnSubmit} className="form-container">
                 <div className='result'>
                     <input
                         type='text'
@@ -142,7 +197,13 @@ function App() {
                     </div>
                 </div>
                 <button type='submit'>Generate Password</button>
+                <button type='button' className='save-button' onClick={handleSave}>Save Password</button>
             </form>
+            <br />
+            <hr />
+            <div className="saved-passwords-container">
+                <SavedPasswords savedPasswords = { savedPasswords } />
+            </div>
         </div>
     </section>
   )
